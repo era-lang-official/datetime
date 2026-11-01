@@ -1,0 +1,158 @@
+// github.com/era-lang-official/datetime
+// Date, time, ISO 8601 formatting, and duration arithmetic
+
+pub struct DateTime {
+    pub year: i64,
+    pub month: i64,
+    pub day: i64,
+    pub hour: i64,
+    pub minute: i64,
+    pub second: i64,
+    pub millisecond: i64,
+}
+
+fn is_leap_year(year: i64) -> bool {
+    if (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0) {
+        return true;
+    }
+    return false;
+}
+
+fn days_in_month(year: i64, month: i64) -> i64 {
+    if month == 2 {
+        if is_leap_year(year) {
+            return 29;
+        }
+        return 28;
+    }
+    if month == 4 || month == 6 || month == 9 || month == 11 {
+        return 30;
+    }
+    return 31;
+}
+
+fn pad2(val: i64) -> string {
+    if val < 10 {
+        return f"0{val}";
+    }
+    return f"{val}";
+}
+
+fn pad3(val: i64) -> string {
+    if val < 10 {
+        return f"00{val}";
+    }
+    if val < 100 {
+        return f"0{val}";
+    }
+    return f"{val}";
+}
+
+impl DateTime {
+    pub fn new(year: i64, month: i64, day: i64, hour: i64, minute: i64, second: i64, millisecond: i64) -> DateTime {
+        return DateTime {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            millisecond,
+        };
+    }
+
+    pub fn from_unix_ms(unix_ms: i64) -> DateTime {
+        let mut total_sec = unix_ms / 1000;
+        let mut ms = unix_ms % 1000;
+        if ms < 0 {
+            ms += 1000;
+            total_sec -= 1;
+        }
+
+        let mut days = total_sec / 86400;
+        let mut rem_sec = total_sec % 86400;
+        if rem_sec < 0 {
+            rem_sec += 86400;
+            days -= 1;
+        }
+
+        let hour = rem_sec / 3600;
+        let minute = (rem_sec % 3600) / 60;
+        let second = rem_sec % 60;
+
+        // Calculate year starting from 1970
+        let mut year: i64 = 1970;
+        while days > 0 {
+            let d_in_y = if is_leap_year(year) { 366 } else { 365 };
+            if days >= d_in_y {
+                days -= d_in_y;
+                year += 1;
+            } else {
+                break;
+            }
+        }
+
+        let mut month: i64 = 1;
+        while month <= 12 {
+            let dim = days_in_month(year, month);
+            if days >= dim {
+                days -= dim;
+                month += 1;
+            } else {
+                break;
+            }
+        }
+        let day = days + 1;
+
+        return DateTime {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            millisecond: ms,
+        };
+    }
+
+    pub fn now() -> DateTime {
+        return DateTime::from_unix_ms(std::time::now());
+    }
+
+    pub fn to_iso8601(&self) -> string {
+        let y_str = f"{self.year}";
+        let m_str = pad2(self.month);
+        let d_str = pad2(self.day);
+        let h_str = pad2(self.hour);
+        let min_str = pad2(self.minute);
+        let s_str = pad2(self.second);
+        let ms_str = pad3(self.millisecond);
+
+        return f"{y_str}-{m_str}-{d_str}T{h_str}:{min_str}:{s_str}.{ms_str}Z";
+    }
+
+    pub fn to_unix_ms(&self) -> i64 {
+        let mut total_days: i64 = 0;
+        let mut y: i64 = 1970;
+        while y < self.year {
+            total_days += if is_leap_year(y) { 366 } else { 365 };
+            y += 1;
+        }
+
+        let mut m: i64 = 1;
+        while m < self.month {
+            total_days += days_in_month(self.year, m);
+            m += 1;
+        }
+        total_days += (self.day - 1);
+
+        let sec = (total_days * 86400) + (self.hour * 3600) + (self.minute * 60) + self.second;
+        return (sec * 1000) + self.millisecond;
+    }
+
+    pub fn add_seconds(&self, sec: i64) -> DateTime {
+        let current_ms = self.to_unix_ms();
+        return DateTime::from_unix_ms(current_ms + (sec * 1000));
+    }
+}
+
